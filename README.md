@@ -34,6 +34,7 @@ python3 -m http.server 8735
 - **Auto drift**: eases the DNA toward a freshly rolled target sheet every ~10s with
   exponential smoothing — no abrupt changes. Discrete params that would pop are held;
   hue/angles wrap the short way. Toggling off freezes the state into a shareable token.
+  Click the 🔒 next to any slider to pin that setting while everything else wanders.
 - **Atlas**: deal 12 random sheets in a grid, click one to load it.
 - Each hash gets a formation name, elevation, and sheet code (e.g. *Halcyon Scarp ·
   +6,763 m · sheet MU-25*), stamped on the PNG export.

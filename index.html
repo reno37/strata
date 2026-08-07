@@ -31,6 +31,8 @@ body { background:var(--bg); color:var(--ink); font-family:ui-sans-serif,system-
 button.copy-icon { background:transparent; border:none; color:#453c28; cursor:pointer; font-size:11px; padding:0 3px;
   vertical-align:middle; line-height:1; transition:color .12s; }
 button.copy-icon:hover { color:var(--mut); }
+#gh-link { display:flex; align-items:center; color:var(--mut); margin-left:10px; transition:color .12s; }
+#gh-link:hover { color:var(--glow); }
 #main-area { display:flex; flex:1; overflow:hidden; }
 #canvas-panel { display:flex; align-items:center; justify-content:center; flex:1; background:#060504; position:relative; overflow:hidden; }
 #view-canvas { width:100%; height:100%; cursor:grab; touch-action:none; background:#060504; }
@@ -72,7 +74,12 @@ button.copy-icon:hover { color:var(--mut); }
 .section-title .caret { color:#453c28; font-size:9px; width:9px; }
 .section.collapsed .section-body { display:none; }
 .crow { display:flex; align-items:center; gap:6px; margin-bottom:5px; min-width:0; }
-.clabel { width:104px; flex-shrink:0; color:var(--mut); font-size:11px; }
+.clabel { width:90px; flex-shrink:0; color:var(--mut); font-size:11px; }
+.lock-btn { background:none; border:none; cursor:pointer; font-size:10px; line-height:1; padding:0;
+  width:14px; flex-shrink:0; filter:grayscale(1); opacity:.3; transition:opacity .12s; }
+.lock-btn:hover { opacity:.7; }
+.lock-btn.locked { filter:none; opacity:1; }
+.lock-spacer { width:14px; flex-shrink:0; }
 .cval { width:44px; flex-shrink:0; text-align:right; color:var(--ink); font-size:11px; font-family:ui-monospace,Consolas,monospace; }
 input[type=range] { flex:1; min-width:0; height:3px; appearance:none; -webkit-appearance:none; background:#292416; outline:none; cursor:pointer; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:9px; height:9px; background:#e0b45c; cursor:pointer; border-radius:0; }
@@ -121,6 +128,9 @@ select { flex:1; background:var(--bg); border:1px solid var(--line); color:var(-
     <button class="action-btn" onclick="loadHash()" style="border-radius:0 7px 7px 0;border-left:1px solid var(--line);">Load</button>
   </div>
   <span id="hash-display">no sheet</span>
+  <a id="gh-link" href="https://github.com/pxl-pshr/strata" target="_blank" rel="noopener" title="pxl-pshr/strata on GitHub">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+  </a>
 </div>
 
 <div id="main-area">
@@ -715,6 +725,22 @@ function buildControls(){
 function buildRow(key, presentation){
   const spec = SPEC_BY_KEY[key];
   const crow = document.createElement('div'); crow.className = 'crow';
+  if(!presentation){
+    if(AUTO_EXCLUDE.has(key)){          // auto never drifts these — spacer keeps labels aligned
+      const sp = document.createElement('span'); sp.className = 'lock-spacer'; crow.appendChild(sp);
+    } else {
+      const lk = document.createElement('button');
+      lk.className = 'lock-btn'; lk.textContent = '🔓';
+      lk.title = 'Lock: hold this value during auto drift';
+      lk.addEventListener('click', ()=>{
+        LOCKED.has(key) ? LOCKED.delete(key) : LOCKED.add(key);
+        const on = LOCKED.has(key);
+        lk.classList.toggle('locked', on);
+        lk.textContent = on ? '🔒' : '🔓';
+      });
+      crow.appendChild(lk);
+    }
+  }
   const lab = document.createElement('span'); lab.className = 'clabel'; lab.textContent = spec.label; crow.appendChild(lab);
   const onchange = presentation ? ()=>{ if(key === 'auto') applyAutoState(); if(view) view.invalidate(); } : draw;
   const names = TYPE_NAMES[key];
@@ -794,6 +820,7 @@ $('audio-file').addEventListener('cancel', ()=>{ $('audio-mode').value = lastGoo
 // that would jump (wave count, palette, invert, index spacing) are held; angles
 // and hue take the short way around the wrap; values glide as un-quantized floats.
 const AUTO_EXCLUDE = new Set(['wave_count','color_mode','invert','major_every']);
+const LOCKED = new Set();   // per-param locks: held during auto drift (🔒 in each row)
 const WRAP_RANGE = { hue:1, wave_dir:6.28, drift_dir:6.28 };
 let autoTarget = null, autoT = 0, autoSyncT = 0;
 function rollAutoTarget(){
@@ -806,7 +833,7 @@ function autoTick(dt){
   if(!autoTarget || autoT <= 0){ rollAutoTarget(); autoT = 10/Math.max(.2, P.auto_rate); }
   const k = 1 - Math.exp(-dt*P.auto_rate/3.5);
   for(const s of DNA){
-    if(AUTO_EXCLUDE.has(s.key)) continue;
+    if(AUTO_EXCLUDE.has(s.key) || LOCKED.has(s.key)) continue;
     const wrap = WRAP_RANGE[s.key];
     let d = autoTarget[s.key] - P[s.key];
     if(wrap) d -= wrap*Math.round(d/wrap);
