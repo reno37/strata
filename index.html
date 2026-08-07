@@ -348,7 +348,7 @@ uniform vec4 uAudio;    // bass, mid, high, level (0..1, smoothed)
 uniform float uBeat;    // beat envelope 0..1
 uniform vec4 uReact;    // a_amp, a_warp, a_shimmer, a_hue
 uniform float uBeatAmt; // a_beat
-uniform float uFlashAmt, uFlashSeed; // a_flash strength, beat counter (repicks which lines strike)
+uniform float uFlashAmt, uFlashSeed, uFlashEnv; // a_flash strength, beat counter (repicks lines), flash envelope
 uniform float uD[29];
 
 #define TAU 6.2831853
@@ -450,11 +450,14 @@ void main(){
   vec3 col = mix(bg, ink, line);
   vec3 glowCol = (mode == 3) ? hsv(hue, SAT*.7, .8) : ink;
   col += glowCol * halo * GLOWP * (.25 + uAudio.w*.75) * .8;
-  // beat flash: a per-beat random subset of contour lines strikes bright — lines only
-  if(uFlashAmt > .001){
+  // beat flash: a per-beat random subset of contour lines strikes neon — lines only.
+  // The pop lives in the bloom: the line core is already near-white, so the flash
+  // brightens a wide halo around selected lines instead of just the core.
+  if(uFlashAmt > .001 && uFlashEnv > .004){
     float sel = step(.55, h21(vec2(nid*.731 + 7.3, uFlashSeed*.617 + 3.1)));
-    vec3 fcol = (mode == 3) ? hsv(hue, SAT*.6, 1.) : ink;
-    col += (fcol*.7 + .3) * line * sel * uBeat * uFlashAmt;
+    float fhalo = exp(-dc/(g*16.));
+    vec3 fcol = (mode == 3) ? hsv(hue, SAT*.5, 1.) : mix(ink, vec3(1.), .6);
+    col += fcol * (line*1.2 + fhalo*.9) * sel * uFlashEnv * uFlashAmt;
   }
   if(INVERT > .5) col = 1. - col;
   col *= 1. - VIG*.55*dot(uv*.62, uv*.62);
@@ -463,11 +466,11 @@ void main(){
 }`;
 
 /* ══════════════════════ audio engine ══════════════════════ */
-const ZEROAUD = { bass:0, mid:0, high:0, level:0, beat:0, beatN:0 };
+const ZEROAUD = { bass:0, mid:0, high:0, level:0, beat:0, beatN:0, flash:0 };
 const AudioEngine = (()=>{
   let ctx=null, analyser=null, srcNode=null, mediaEl=null, micStream=null, objURL=null;
   let mode='off', freqData=null;
-  const S = { bass:0, mid:0, high:0, level:0, beat:0, beatN:0 };
+  const S = { bass:0, mid:0, high:0, level:0, beat:0, beatN:0, flash:0 };
   let emaBass=.1, lastBeatT=0, demoPrev=0;
 
   function ensureCtx(){
@@ -523,7 +526,7 @@ const AudioEngine = (()=>{
     let rb = 0, rm = 0, rh = 0;
     if(mode === 'demo'){
       const ph = now*116/60;                      // 116 bpm
-      if(Math.floor(ph) !== Math.floor(demoPrev)){ S.beat = 1; S.beatN++; }
+      if(Math.floor(ph) !== Math.floor(demoPrev)){ S.beat = 1; S.flash = 1; S.beatN++; }
       demoPrev = ph;
       const env = Math.exp(-(ph - Math.floor(ph))*7);
       const hat = Math.exp(-((ph*2) - Math.floor(ph*2))*9);
@@ -535,7 +538,7 @@ const AudioEngine = (()=>{
       rb = Math.min(1, band(25, 150)*1.5*gain);
       rm = Math.min(1, band(150, 1800)*2.0*gain);
       rh = Math.min(1, band(1800, 9000)*2.7*gain);
-      if(rb > emaBass*1.32 + .05 && now - lastBeatT > .2){ S.beat = 1; S.beatN++; lastBeatT = now; }
+      if(rb > emaBass*1.32 + .05 && now - lastBeatT > .2){ S.beat = 1; S.flash = 1; S.beatN++; lastBeatT = now; }
       emaBass += (rb - emaBass)*Math.min(1, dt*3);
     }
     const atk = Math.min(1, dt*22), rel = Math.min(1, dt*5.5);
@@ -544,6 +547,7 @@ const AudioEngine = (()=>{
     S.high += (rh - S.high)*(rh > S.high ? atk : rel);
     S.level = S.bass*.5 + S.mid*.3 + S.high*.2;
     S.beat *= Math.exp(-dt*5);
+    S.flash *= Math.exp(-dt*3.2);   // slower than the beat env — the strike stays visible
     return S;
   }
   return { setMode, update, getMode: ()=>mode };
@@ -594,7 +598,7 @@ function createView(canvas, getParams, opts = {}){
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const U = {};
-  for(const n of ['uRes','uCenter','uTime','uZoom','uAudio','uBeat','uReact','uBeatAmt','uFlashAmt','uFlashSeed','uD'])
+  for(const n of ['uRes','uCenter','uTime','uZoom','uAudio','uBeat','uReact','uBeatAmt','uFlashAmt','uFlashSeed','uFlashEnv','uD'])
     U[n] = gl.getUniformLocation(prog, n);
 
   const uD = new Float32Array(DNA.length);
@@ -623,6 +627,7 @@ function createView(canvas, getParams, opts = {}){
     gl.uniform1f(U.uBeatAmt, P.a_beat);
     gl.uniform1f(U.uFlashAmt, P.a_flash);
     gl.uniform1f(U.uFlashSeed, aud.beatN || 0);
+    gl.uniform1f(U.uFlashEnv, aud.flash || 0);
     DNA.forEach((s,i)=>{ uD[i] = P[s.key]; });
     gl.uniform1fv(U.uD, uD);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
