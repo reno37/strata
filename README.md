@@ -28,7 +28,9 @@ python3 -m http.server 8735
   file needed) / Microphone / Audio file (looping playback). Bands are split into
   bass/mid/high with attack–release smoothing and a bass-onset beat detector.
   Mapping: bass→swell, mid→warp, level→flow speed, high→shimmer + hue shift,
-  beat→contour ripple + zoom pulse. All mapping strengths are sliders; live meter.
+  beat→contour ripple + zoom pulse + **flash** (a random subset of contour lines
+  strikes bright on each beat — lines only, a different set every hit).
+  All mapping strengths are sliders; live meter.
 - **Color modes**: mono (black & white), duotone, spectrum (hue along height),
   terrace (filled elevation bands); invert, hue/spread/saturation.
 - **Auto drift**: eases the DNA toward a freshly rolled target sheet every ~10s with
