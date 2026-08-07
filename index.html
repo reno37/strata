@@ -471,7 +471,8 @@ const AudioEngine = (()=>{
   let ctx=null, analyser=null, srcNode=null, mediaEl=null, micStream=null, objURL=null;
   let mode='off', freqData=null;
   const S = { bass:0, mid:0, high:0, level:0, beat:0, beatN:0, flash:0 };
-  let emaBass=.1, lastBeatT=0, demoPrev=0;
+  let lastBeatT=0, demoPrev=0, beatThr=.2;
+  const nMax = { b:.05, m:.05, h:.05 };   // per-band running maxes for auto-normalization
 
   function ensureCtx(){
     if(!ctx){
@@ -535,11 +536,21 @@ const AudioEngine = (()=>{
       rh = Math.min(1, Math.max(0, .2 + .14*Math.sin(now*3.7 + .5) + .32*hat));
     } else if(mode !== 'off' && analyser){
       analyser.getByteFrequencyData(freqData);
-      rb = Math.min(1, band(25, 150)*1.5*gain);
-      rm = Math.min(1, band(150, 1800)*2.0*gain);
-      rh = Math.min(1, band(1800, 9000)*2.7*gain);
-      if(rb > emaBass*1.32 + .05 && now - lastBeatT > .2){ S.beat = 1; S.flash = 1; S.beatN++; lastBeatT = now; }
-      emaBass += (rb - emaBass)*Math.min(1, dt*3);
+      // Auto-normalize each band by a slowly-decaying running max: quiet mics and
+      // loud files both land in 0..1 with real dynamics instead of clamping flat.
+      const wb = band(25, 150), wm = band(150, 1800), wh = band(1800, 9000);
+      const dk = Math.exp(-dt*.12);
+      nMax.b = Math.max(nMax.b*dk, .04, wb);
+      nMax.m = Math.max(nMax.m*dk, .04, wm);
+      nMax.h = Math.max(nMax.h*dk, .04, wh);
+      rb = Math.min(1, wb/nMax.b*gain);
+      rm = Math.min(1, wm/nMax.m*gain);
+      rh = Math.min(1, wh/nMax.h*gain);
+      // Beat: adaptive peak-decay on normalized bass — fires on each rise above the
+      // decayed recent peak, immune to sustained or clipped bass levels.
+      beatThr = Math.max(beatThr*Math.exp(-dt*2), .15);
+      if(rb > beatThr + .12 && now - lastBeatT > .18){ S.beat = 1; S.flash = 1; S.beatN++; lastBeatT = now; }
+      if(rb > beatThr) beatThr = rb;
     }
     const atk = Math.min(1, dt*22), rel = Math.min(1, dt*5.5);
     S.bass += (rb - S.bass)*(rb > S.bass ? atk : rel);
