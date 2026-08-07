@@ -254,6 +254,7 @@ const AUDIO_SPEC = [
   ['a_beat',    'beat → ripple',  0, 1.5, .05, .6],
   ['a_zoom',    'beat → pulse',   0, 1, .02,  .15],
   ['a_flash',   'beat → flash',   0, 2, .05,  .8],
+  ['a_flashn',  'flash coverage', .05, .6, .01, .18],
 ];
 const VIEW_SPEC = [
   ['auto',      'auto drift',   0, 1, 1,   0],
@@ -274,7 +275,7 @@ const SECTIONS = [
   { title:'Color',    rows:['color_mode','hue','hue_spread','sat','bg_lum','ink_lum','invert','glow'] },
   { title:'Motion',   rows:['flow_speed','drift_dir','drift_speed','morph'], collapsed:true },
   { title:'Texture',  rows:['grain','vignette'], collapsed:true },
-  { title:'Audio response', rows:['a_gain','a_amp','a_warp','a_speed','a_shimmer','a_hue','a_beat','a_zoom','a_flash'], presentation:true },
+  { title:'Audio response', rows:['a_gain','a_amp','a_warp','a_speed','a_shimmer','a_hue','a_beat','a_zoom','a_flash','a_flashn'], presentation:true },
   { title:'Auto drift', rows:['auto','auto_rate'], presentation:true },
   { title:'Viewing',  rows:['res','animate'], collapsed:true, presentation:true },
 ];
@@ -348,7 +349,7 @@ uniform vec4 uAudio;    // bass, mid, high, level (0..1, smoothed)
 uniform float uBeat;    // beat envelope 0..1
 uniform vec4 uReact;    // a_amp, a_warp, a_shimmer, a_hue
 uniform float uBeatAmt; // a_beat
-uniform float uFlashAmt, uFlashSeed, uFlashEnv; // a_flash strength, beat counter (repicks lines), flash envelope
+uniform float uFlashAmt, uFlashSeed, uFlashEnv, uFlashCov; // a_flash strength, beat counter (repicks lines), envelope, coverage
 uniform float uD[29];
 
 #define TAU 6.2831853
@@ -454,7 +455,7 @@ void main(){
   // The pop lives in the bloom: the line core is already near-white, so the flash
   // brightens a wide halo around selected lines instead of just the core.
   if(uFlashAmt > .001 && uFlashEnv > .004){
-    float sel = step(.55, h21(vec2(nid*.731 + 7.3, uFlashSeed*.617 + 3.1)));
+    float sel = step(1. - uFlashCov, h21(vec2(nid*.731 + 7.3, uFlashSeed*.617 + 3.1)));
     float fhalo = exp(-dc/(g*16.));
     vec3 fcol = (mode == 3) ? hsv(hue, SAT*.5, 1.) : mix(ink, vec3(1.), .6);
     col += fcol * (line*1.2 + fhalo*.9) * sel * uFlashEnv * uFlashAmt;
@@ -609,7 +610,7 @@ function createView(canvas, getParams, opts = {}){
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const U = {};
-  for(const n of ['uRes','uCenter','uTime','uZoom','uAudio','uBeat','uReact','uBeatAmt','uFlashAmt','uFlashSeed','uFlashEnv','uD'])
+  for(const n of ['uRes','uCenter','uTime','uZoom','uAudio','uBeat','uReact','uBeatAmt','uFlashAmt','uFlashSeed','uFlashEnv','uFlashCov','uD'])
     U[n] = gl.getUniformLocation(prog, n);
 
   const uD = new Float32Array(DNA.length);
@@ -639,6 +640,7 @@ function createView(canvas, getParams, opts = {}){
     gl.uniform1f(U.uFlashAmt, P.a_flash);
     gl.uniform1f(U.uFlashSeed, aud.beatN || 0);
     gl.uniform1f(U.uFlashEnv, aud.flash || 0);
+    gl.uniform1f(U.uFlashCov, P.a_flashn);
     DNA.forEach((s,i)=>{ uD[i] = P[s.key]; });
     gl.uniform1fv(U.uD, uD);
     gl.drawArrays(gl.TRIANGLES, 0, 3);

@@ -29,7 +29,9 @@ python3 -m http.server 8735
   bass/mid/high with attack–release smoothing and a bass-onset beat detector.
   Mapping: bass→swell, mid→warp, level→flow speed, high→shimmer + hue shift,
   beat→contour ripple + zoom pulse + **flash** (a random subset of contour lines
-  strikes bright on each beat — lines only, a different set every hit).
+  strikes bright on each beat — lines only, a different set every hit; the
+  **flash coverage** slider sets how many lines strike, from a lone contour to half
+  the field).
   All mapping strengths are sliders; live meter.
 - **Color modes**: mono (black & white), duotone, spectrum (hue along height),
   terrace (filled elevation bands); invert, hue/spread/saturation.
