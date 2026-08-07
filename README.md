@@ -1,13 +1,16 @@
 # STRATA — audio-reactive topographic wave generator
 
+**Live: [pxl-pshr.github.io/strata](https://pxl-pshr.github.io/strata/)**
+
 Hash-seeded topographic contour-line fields that move like water and react to sound.
 A single self-contained WebGL2 page — no build step, no dependencies.
 
 Every sheet is rolled from an 8-hex hash into a 29-parameter DNA (wave fan, fbm
 terrain, domain warp, contour density, palette…) and is shareable as a `?h=` token,
-including any slider tweaks.
+including any slider tweaks — e.g.
+[`?h=deadbeef~11:44_20:0.9`](https://pxl-pshr.github.io/strata/?h=deadbeef~11:44_20:0.9).
 
-## Run
+## Run locally
 
 Any static server:
 
