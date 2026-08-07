@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STRATA — audio-reactive topographic wave generator</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">🗺️</text></svg>'>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --bg:#0b0a07; --panel:#131108; --line:#292416; --ink:#c9bda2; --mut:#6e6450;
+  --glow:#e0b45c; --accent:#d97e4a;
+}
+body { background:var(--bg); color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:13px; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+#topbar { display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--panel);
+  border-bottom:1px solid var(--line); flex-shrink:0; flex-wrap:wrap; }
+.wordmark { font-size:15px; font-weight:800; letter-spacing:.28em; color:var(--glow); user-select:none;
+  text-shadow:0 0 14px rgba(224,180,92,.35); margin-right:4px; }
+.action-btn { background:transparent; border:1px solid var(--line); color:var(--ink); padding:6px 12px; cursor:pointer;
+  font:600 12px ui-sans-serif,system-ui,sans-serif; border-radius:7px; transition:border-color .12s,color .12s,box-shadow .12s; white-space:nowrap; }
+.action-btn:hover { border-color:#4d4228; color:#f2ead6; box-shadow:0 0 12px rgba(224,180,92,.12); }
+#auto-btn.active { border-color:var(--glow); color:var(--glow); box-shadow:0 0 12px rgba(224,180,92,.3); }
+.sep { color:var(--line); margin:0 2px; }
+#hash-input-wrap { display:flex; align-items:stretch; background:var(--bg); border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+#hash-input { background:transparent; border:0; outline:none; color:var(--ink);
+  font:12px ui-monospace,Consolas,monospace; padding:5px 10px; width:150px; }
+#hash-input::placeholder { color:#453c28; }
+#hash-display { font-size:12px; color:var(--mut); margin-left:auto; letter-spacing:1px; font-family:ui-monospace,Consolas,monospace; }
+#hash-display b { color:var(--glow); font-weight:600; }
+button.copy-icon { background:transparent; border:none; color:#453c28; cursor:pointer; font-size:11px; padding:0 3px;
+  vertical-align:middle; line-height:1; transition:color .12s; }
+button.copy-icon:hover { color:var(--mut); }
+#main-area { display:flex; flex:1; overflow:hidden; }
+#canvas-panel { display:flex; align-items:center; justify-content:center; flex:1; background:#060504; position:relative; overflow:hidden; }
+#view-canvas { width:100%; height:100%; cursor:grab; touch-action:none; background:#060504; }
+#view-canvas:active { cursor:grabbing; }
+#sheet-card { position:absolute; left:14px; bottom:12px; z-index:10; pointer-events:none; user-select:none;
+  font-family:ui-monospace,Consolas,monospace; text-shadow:0 1px 6px rgba(0,0,0,.9); }
+#sheet-card .formation { font-size:14px; color:#efe6ce; letter-spacing:.5px; }
+#sheet-card .meta { font-size:11px; color:var(--mut); margin-top:3px; letter-spacing:1px; }
+#recenter-btn, #dl-btn, #fs-btn { position:absolute; top:10px; z-index:11; background:rgba(19,17,8,.85); border:1px solid var(--line);
+  color:var(--mut); width:30px; height:30px; cursor:pointer; font-size:15px; display:flex; align-items:center;
+  justify-content:center; border-radius:6px; }
+#fs-btn { right:82px; } #recenter-btn { right:46px; } #dl-btn { right:10px; font-size:16px; }
+#recenter-btn:hover, #dl-btn:hover, #fs-btn:hover { color:var(--ink); border-color:#4d4228; }
+#loading { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:16px; background:#060504; color:var(--glow); font:13px ui-monospace,monospace; letter-spacing:3px; }
+#loading .rings { position:relative; width:70px; height:70px; }
+#loading .rings span { position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%;
+  border:1px solid rgba(224,180,92,.6); opacity:0; animation:ripple 2.4s ease-out infinite; }
+#loading .rings span:nth-child(2){ animation-delay:.6s; }
+#loading .rings span:nth-child(3){ animation-delay:1.2s; }
+#loading .rings span:nth-child(4){ animation-delay:1.8s; }
+@keyframes ripple { 0%{ transform:scale(.3); opacity:0; } 15%{ opacity:.9; } 100%{ transform:scale(6.5); opacity:0; } }
+#controls-sheet { width:318px; flex-shrink:0; display:flex; flex-direction:column; background:var(--panel); border-left:1px solid var(--line); }
+#audio-box { flex-shrink:0; padding:10px 10px 6px; border-bottom:1px solid var(--line); }
+#audio-box .audio-head { color:var(--mut); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; font-weight:600; margin-bottom:7px; }
+#audio-box .audio-row { display:flex; align-items:center; gap:8px; }
+#audio-mode { flex:1; background:var(--bg); border:1px solid var(--line); color:var(--ink); padding:4px 6px;
+  font-family:ui-sans-serif,system-ui,sans-serif; font-size:12px; cursor:pointer; outline:none; border-radius:5px; }
+#meter { background:var(--bg); border:1px solid var(--line); border-radius:4px; flex-shrink:0; }
+#audio-status { color:var(--mut); font:11px ui-monospace,Consolas,monospace; margin-top:6px; letter-spacing:.5px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#audio-status.live { color:var(--glow); }
+#controls-panel { flex:1; overflow-y:auto; overflow-x:hidden; padding:10px; }
+.section { margin-bottom:10px; }
+.section-title { color:var(--mut); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:7px;
+  padding-bottom:4px; border-bottom:1px solid var(--line); cursor:pointer; display:flex; align-items:center; gap:6px;
+  user-select:none; font-weight:600; }
+.section-title:hover { color:var(--ink); }
+.section-title .caret { color:#453c28; font-size:9px; width:9px; }
+.section.collapsed .section-body { display:none; }
+.crow { display:flex; align-items:center; gap:6px; margin-bottom:5px; min-width:0; }
+.clabel { width:104px; flex-shrink:0; color:var(--mut); font-size:11px; }
+.cval { width:44px; flex-shrink:0; text-align:right; color:var(--ink); font-size:11px; font-family:ui-monospace,Consolas,monospace; }
+input[type=range] { flex:1; min-width:0; height:3px; appearance:none; -webkit-appearance:none; background:#292416; outline:none; cursor:pointer; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:9px; height:9px; background:#e0b45c; cursor:pointer; border-radius:0; }
+input[type=checkbox] { width:16px; height:16px; cursor:pointer; accent-color:#e0b45c; }
+select { flex:1; background:var(--bg); border:1px solid var(--line); color:var(--ink); padding:3px 5px;
+  font-family:ui-sans-serif,system-ui,sans-serif; font-size:11px; cursor:pointer; outline:none; border-radius:4px; }
+#grid-overlay { position:absolute; inset:0; z-index:15; display:none; flex-direction:column; background:rgba(6,5,4,.97); }
+#grid-bar { display:flex; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); flex-shrink:0; }
+#grid-bar .grid-title { font:600 12px ui-sans-serif,system-ui,sans-serif; color:var(--mut); letter-spacing:2px; text-transform:uppercase; margin-right:4px; }
+#grid-cells { flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:12px; align-content:start; }
+.gcell { position:relative; border:1px solid var(--line); border-radius:8px; background:#060504; cursor:pointer;
+  overflow:hidden; transition:border-color .12s, box-shadow .12s; }
+.gcell:hover { border-color:#4d4228; box-shadow:0 0 16px rgba(224,180,92,.1); }
+.gcell canvas { width:100%; display:block; }
+.gcell .ghash { position:absolute; left:7px; bottom:5px; font:10px ui-monospace,Consolas,monospace; color:var(--mut);
+  letter-spacing:1px; text-shadow:0 1px 3px rgba(0,0,0,.9); }
+.gcell .gname { position:absolute; left:7px; bottom:18px; font:10px ui-monospace,Consolas,monospace; color:#b3a583;
+  text-shadow:0 1px 3px rgba(0,0,0,.9); }
+.gcell:hover .ghash { color:var(--ink); }
+#grid-render { position:fixed; left:-10000px; top:0; width:300px; height:300px; }
+#canvas-panel:fullscreen #sheet-card, #canvas-panel:fullscreen #dl-btn,
+#canvas-panel:fullscreen #recenter-btn, #canvas-panel:fullscreen #fs-btn { display:none; }
+#err { position:absolute; inset:0; z-index:20; display:none; align-items:center; justify-content:center; background:#060504; }
+#err pre { max-width:84%; color:#ff8a8a; font:11px ui-monospace,monospace; white-space:pre-wrap; line-height:1.5; }
+::-webkit-scrollbar { width:4px; height:4px; } ::-webkit-scrollbar-thumb { background:#292416; border-radius:2px; }
+* { scrollbar-width:thin; scrollbar-color:#292416 transparent; }
+@media (max-width:760px){
+  #main-area { flex-direction:column; }
+  #controls-sheet { width:auto; height:42vh; border-left:0; border-top:1px solid var(--line); }
+  #hash-display { order:9; flex-basis:100%; margin-left:0; }
+  #grid-cells { grid-template-columns:repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="wordmark">STRATA</span>
+  <span class="sep">|</span>
+  <button class="action-btn" onclick="randomize()" title="[space]">↻ New sheet</button>
+  <button class="action-btn" onclick="openGrid()" title="[t] Deal 12 random sheets">⌗ Atlas</button>
+  <button class="action-btn" id="auto-btn" onclick="toggleAuto()" title="[a] Slowly drift through random settings">◈ Auto</button>
+  <span class="sep">|</span>
+  <div id="hash-input-wrap">
+    <input id="hash-input" type="text" placeholder="load hash…" spellcheck="false" autocomplete="off" onkeydown="if(event.key==='Enter')loadHash()">
+    <button class="action-btn" onclick="loadHash()" style="border-radius:0 7px 7px 0;border-left:1px solid var(--line);">Load</button>
+  </div>
+  <span id="hash-display">no sheet</span>
+</div>
+
+<div id="main-area">
+  <div id="canvas-panel">
+    <button id="dl-btn" onclick="downloadPNG()" title="Download sheet PNG [↓]">↓</button>
+    <button id="recenter-btn" onclick="viewRecenter()" title="Recenter view">⌂</button>
+    <button id="fs-btn" onclick="toggleFullscreen()" title="Fullscreen [f]">⛶</button>
+    <canvas id="view-canvas"></canvas>
+    <div id="sheet-card">
+      <div class="formation"></div>
+      <div class="meta"></div>
+    </div>
+    <div id="loading"><div class="rings"><span></span><span></span><span></span><span></span></div><div>SURVEYING…</div></div>
+    <div id="err"><pre></pre></div>
+    <div id="grid-overlay">
+      <div id="grid-bar">
+        <span class="grid-title">Atlas</span>
+        <button class="action-btn" onclick="dealGrid()">↻ Re-deal</button>
+        <button class="action-btn" onclick="downloadGridPNG()">↓ PNG</button>
+        <button class="action-btn" onclick="closeGrid()" style="margin-left:auto">✕ Close</button>
+      </div>
+      <div id="grid-cells"></div>
+    </div>
+  </div>
+  <div id="controls-sheet">
+    <div id="audio-box">
+      <div class="audio-head">Audio input</div>
+      <div class="audio-row">
+        <select id="audio-mode" autocomplete="off">
+          <option value="off">Off</option>
+          <option value="demo">Demo groove</option>
+          <option value="mic">Microphone</option>
+          <option value="file">Audio file…</option>
+        </select>
+        <canvas id="meter" width="66" height="26"></canvas>
+      </div>
+      <div id="audio-status">silent — field drifts on its own</div>
+      <input type="file" id="audio-file" accept="audio/*" hidden>
+    </div>
+    <div id="controls-panel"></div>
+  </div>
+</div>
+
+<canvas id="grid-render"></canvas>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ══════════════════════ core: hash → PRNG ══════════════════════ */
+function xmur3(str){
+  let h = 1779033703 ^ str.length;
+  for(let i=0;i<str.length;i++){
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = h<<13 | h>>>19;
+  }
+  return function(){
+    h = Math.imul(h ^ (h>>>16), 2246822507);
+    h = Math.imul(h ^ (h>>>13), 3266489909);
+    return (h ^= h>>>16) >>> 0;
+  };
+}
+function sfc32(a,b,c,d){
+  return function(){
+    a>>>=0; b>>>=0; c>>>=0; d>>>=0;
+    let t = (a+b)|0;
+    a = b ^ b>>>9; b = c + (c<<3) | 0; c = (c<<21 | c>>>11);
+    d = d + 1 | 0; t = t + d | 0; c = c + t | 0;
+    return (t>>>0) / 4294967296;
+  };
+}
+function rngFrom(str){ const s = xmur3(str); return sfc32(s(),s(),s(),s()); }
+function randHex(n){
+  const a = new Uint8Array(Math.ceil(n/2)); crypto.getRandomValues(a);
+  return [...a].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,n);
+}
+function mkCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+
+/* ══════════════════════ params: DNA spec ══════════════════════ */
+// Order defines the uD[] uniform indices in the shader — do not reorder.
+// [key, label, min, max, step, rollMap?]  rollMap: r(0..1) → value, else uniform in range.
+const DNA_SPEC = [
+  ['wave_count',  'wave fronts',    1, 6, 1,     r => 2 + Math.round(r*3)],
+  ['wave_dir',    'wave heading',   0, 6.28, .01],
+  ['wave_spread', 'fan spread',   .08, 1.1, .01, r => .15 + r*.7],
+  ['wave_freq',   'wave frequency',.8, 6, .01,   r => 1.2 + r*2.8],
+  ['wave_amp',    'wave amplitude',.1, 1.4, .01, r => .35 + r*.65],
+  ['wave_speed',  'wave rate',     .1, 1.6, .01, r => .3 + r*.8],
+  ['noise_scale', 'terrain scale', .4, 3, .01,   r => .7 + r*1.5],
+  ['noise_amp',   'terrain relief', 0, 1.2, .01, r => .25 + r*.6],
+  ['warp_amt',    'warp',           0, 1.4, .01, r => .2 + r*.7],
+  ['warp_scale',  'warp scale',   .3, 2.5, .01,  r => .5 + r*1.2],
+  ['stretch',     'anisotropy',  .45, 2.4, .01,  r => .6 + r*1.2],
+  ['levels',      'contour density',6, 48, 1,    r => 12 + Math.round(r*24)],
+  ['line_w',      'line width',    .5, 3, .05,   r => .8 + r*1.2],
+  ['major_every', 'index every',    0, 8, 1,     r => r<.3 ? 0 : 3 + Math.round((r-.3)/.7*5)],
+  ['major_w',     'index weight', 1.4, 3.5, .05],
+  ['flow_speed',  'flow rate',    .05, 1.5, .01, r => .2 + r*.6],
+  ['drift_dir',   'drift heading',  0, 6.28, .01],
+  ['drift_speed', 'drift rate',     0, 1, .01,   r => r*.5],
+  ['morph',       'morph rate',     0, 1.2, .01, r => .15 + r*.55],
+  ['color_mode',  'palette',        0, 3, 1,     r => r<.35?0 : r<.6?1 : r<.85?2 : 3],
+  ['hue',         'base hue',       0, 1, .01],
+  ['hue_spread',  'hue spread',     0, 1, .01,   r => .1 + r*.5],
+  ['sat',         'saturation',     0, 1, .01,   r => .35 + r*.5],
+  ['bg_lum',      'paper tone',     0, .4, .01,  r => r*.18],
+  ['ink_lum',     'ink brightness',.55, 1, .01,  r => .75 + r*.25],
+  ['invert',      'invert',         0, 1, 1,     r => r<.18 ? 1 : 0],
+  ['glow',        'line glow',      0, 1, .01,   r => r*.6],
+  ['grain',       'grain',          0, 1, .01,   r => .1 + r*.4],
+  ['vignette',    'vignette',       0, 1, .01,   r => .2 + r*.5],
+];
+// Audio-response + viewing params: not part of DNA, not rolled, not encoded in tokens.
+const AUDIO_SPEC = [
+  ['a_gain',    'input gain',    .2, 3, .05,  1],
+  ['a_amp',     'bass → swell',   0, 2, .05,  1],
+  ['a_warp',    'mid → warp',     0, 2, .05,  .8],
+  ['a_speed',   'level → flow',   0, 2, .05,  .6],
+  ['a_shimmer', 'high → shimmer', 0, 2, .05,  .7],
+  ['a_hue',     'high → hue',     0, 1, .02,  .25],
+  ['a_beat',    'beat → ripple',  0, 1.5, .05, .6],
+  ['a_zoom',    'beat → pulse',   0, 1, .02,  .15],
+];
+const VIEW_SPEC = [
+  ['auto',      'auto drift',   0, 1, 1,   0],
+  ['auto_rate', 'wander rate', .2, 3, .05, 1],
+  ['res',       'resolution', .35, 1, .05, 1],
+  ['animate',   'animate',      0, 1, 1,   1],
+];
+const DNA = DNA_SPEC.map(([key,label,min,max,step,map]) => ({key,label,min,max,step,map}));
+const SPEC_BY_KEY = {};
+DNA.forEach(s => SPEC_BY_KEY[s.key]=s);
+AUDIO_SPEC.forEach(([key,label,min,max,step,def]) => SPEC_BY_KEY[key]={key,label,min,max,step,def,view:true});
+VIEW_SPEC.forEach(([key,label,min,max,step,def]) => SPEC_BY_KEY[key]={key,label,min,max,step,def,view:true});
+
+const SECTIONS = [
+  { title:'Waves',    rows:['wave_count','wave_dir','wave_spread','wave_freq','wave_amp','wave_speed'] },
+  { title:'Terrain',  rows:['noise_scale','noise_amp','warp_amt','warp_scale','stretch'] },
+  { title:'Contours', rows:['levels','line_w','major_every','major_w'] },
+  { title:'Color',    rows:['color_mode','hue','hue_spread','sat','bg_lum','ink_lum','invert','glow'] },
+  { title:'Motion',   rows:['flow_speed','drift_dir','drift_speed','morph'], collapsed:true },
+  { title:'Texture',  rows:['grain','vignette'], collapsed:true },
+  { title:'Audio response', rows:['a_gain','a_amp','a_warp','a_speed','a_shimmer','a_hue','a_beat','a_zoom'], presentation:true },
+  { title:'Auto drift', rows:['auto','auto_rate'], presentation:true },
+  { title:'Viewing',  rows:['res','animate'], collapsed:true, presentation:true },
+];
+const TYPE_NAMES = {
+  color_mode: ['mono','duotone','spectrum','terrace'],
+};
+function decimals(step){ const s=String(step); const i=s.indexOf('.'); return i<0?0:s.length-i-1; }
+function quant(v,spec){
+  v = Math.min(spec.max, Math.max(spec.min, v));
+  v = spec.min + Math.round((v-spec.min)/spec.step)*spec.step;
+  return +v.toFixed(decimals(spec.step));
+}
+function mkDefault(){
+  const P = {};
+  for(const s of DNA) P[s.key] = quant((s.min+s.max)/2, s);
+  AUDIO_SPEC.forEach(([key,label,min,max,step,def]) => P[key]=def);
+  VIEW_SPEC.forEach(([key,label,min,max,step,def]) => P[key]=def);
+  return P;
+}
+function roll(P, hash){
+  const rng = rngFrom(hash);
+  for(const s of DNA){
+    const r = rng();
+    P[s.key] = quant(s.map ? s.map(r) : s.min + r*(s.max-s.min), s);
+  }
+}
+
+/* ══════════════════════ survey meta: hash → sheet name ══════════════════════ */
+const GEO1 = ['Umber','Cairn','Vesper','Halcyon','Drumlin','Obsidian','Meridian','Sable','Quartz','Larkspur','Moray','Tarn','Cinder','Basalt','Gneiss','Solstice'];
+const GEO2 = ['Anticline','Terrace','Basin','Fold','Scarp','Ridge','Drift','Plateau','Saddle','Rift','Moraine','Shoal'];
+const SHEET_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+function surveyMeta(hash){
+  const rng = rngFrom(hash + ':meta');
+  const name = GEO1[Math.floor(rng()*GEO1.length)] + ' ' + GEO2[Math.floor(rng()*GEO2.length)];
+  const elev = 120 + Math.floor(rng()*8642);
+  const sheet = SHEET_ALPHA[Math.floor(rng()*SHEET_ALPHA.length)] + SHEET_ALPHA[Math.floor(rng()*SHEET_ALPHA.length)]
+              + '-' + (1 + Math.floor(rng()*89));
+  return { name, elev: '+' + elev.toLocaleString('en-US') + ' m', sheet };
+}
+
+/* ══════════════════════ token: baseHash + overrides ══════════════════════ */
+const TOKEN = {
+  encode(baseHash, P, baseline){
+    const parts = [];
+    DNA.forEach((s,i)=>{ if(P[s.key] !== baseline[s.key]) parts.push(i+':'+P[s.key]); });
+    return parts.length ? baseHash+'~'+parts.join('_') : baseHash;
+  },
+  decode(token){
+    const [baseHash, ov] = token.split('~');
+    const overrides = [];
+    if(ov) for(const pair of ov.split('_')){
+      const ci = pair.indexOf(':'); if(ci<0) continue;
+      const i = parseInt(pair.slice(0,ci),10), v = parseFloat(pair.slice(ci+1));
+      if(Number.isFinite(i) && Number.isFinite(v) && DNA[i]) overrides.push([i,v]);
+    }
+    return { baseHash, overrides };
+  },
+  apply(P, overrides){ for(const [i,v] of overrides) P[DNA[i].key] = quant(v, DNA[i]); },
+};
+
+/* ══════════════════════ shader ══════════════════════ */
+const VERT = `#version 300 es
+in vec2 aPos; void main(){ gl_Position = vec4(aPos,0.,1.); }`;
+
+const FRAG = `#version 300 es
+precision highp float;
+out vec4 O;
+uniform vec2 uRes, uCenter;
+uniform float uTime, uZoom;
+uniform vec4 uAudio;    // bass, mid, high, level (0..1, smoothed)
+uniform float uBeat;    // beat envelope 0..1
+uniform vec4 uReact;    // a_amp, a_warp, a_shimmer, a_hue
+uniform float uBeatAmt; // a_beat
+uniform float uD[29];
+
+#define TAU 6.2831853
+
+#define WAVEN   uD[0]
+#define WDIR    uD[1]
+#define WSPREAD uD[2]
+#define WFREQ   uD[3]
+#define WAMP    uD[4]
+#define WSPEED  uD[5]
+#define NSCALE  uD[6]
+#define NAMP    uD[7]
+#define WARP    uD[8]
+#define WARPSC  uD[9]
+#define STRETCH uD[10]
+#define LEVELS  uD[11]
+#define LINEW   uD[12]
+#define MAJORN  uD[13]
+#define MAJORW  uD[14]
+// uD[15] flow_speed is applied CPU-side (time integration)
+#define DRIFTD  uD[16]
+#define DRIFTS  uD[17]
+#define MORPH   uD[18]
+#define CMODE   uD[19]
+#define HUE     uD[20]
+#define HSPREAD uD[21]
+#define SAT     uD[22]
+#define BGL     uD[23]
+#define INKL    uD[24]
+#define INVERT  uD[25]
+#define GLOWP   uD[26]
+#define GRAIN   uD[27]
+#define VIG     uD[28]
+
+vec3 hsv(float h, float s, float v){
+  vec3 k = clamp(abs(mod(h*6. + vec3(0.,4.,2.), 6.) - 3.) - 1., 0., 1.);
+  return v * mix(vec3(1.), k, s);
+}
+float h21(vec2 p){ p = fract(p*vec2(234.34,435.345)); p += dot(p, p+34.23); return fract(p.x*p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f*f*(3.-2.*f);
+  float a = h21(i), b = h21(i+vec2(1,0)), c = h21(i+vec2(0,1)), d = h21(i+vec2(1,1));
+  return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+}
+float fbm(vec2 p){
+  float s = 0., a = .5;
+  mat2 m = mat2(1.52,1.14,-1.14,1.52);   // rotate + scale ×1.9 per octave
+  for(int i=0;i<5;i++){ s += a*vnoise(p); p = m*p; a *= .5; }
+  return s;
+}
+
+float heightf(vec2 p){
+  float t = uTime, tm = t*MORPH;
+  vec2 q = p; q.y *= STRETCH;
+  // domain warp — mid band leans on it
+  float wAmp = WARP*(1. + uAudio.y*uReact.y);
+  vec2 w = vec2(fbm(q*WARPSC + vec2(0., tm*.11)), fbm(q*WARPSC + vec2(5.2, -tm*.13)));
+  q += (w - .5)*wAmp;
+  // fan of directional wave fronts — bass swells the amplitude
+  float amp = WAMP*(1. + uAudio.x*uReact.x);
+  float h = 0.;
+  for(int i=0;i<6;i++){
+    if(float(i) > WAVEN - .5) break;
+    float fi = float(i);
+    float a = WDIR + (fi - (WAVEN-1.)*.5)*WSPREAD;
+    vec2 d = vec2(cos(a), sin(a));
+    h += sin(dot(q,d)*WFREQ*(1.+fi*.31) + t*WSPEED*(.5+fi*.17) + fi*2.4) * amp/(1.+fi*.55);
+  }
+  // rolling terrain under the waves
+  h += (fbm(q*NSCALE + vec2(tm*.07, tm*.04)) - .5)*NAMP*2.4;
+  // high band: fine shimmer ripple
+  h += sin(q.x*29. + q.y*23. + t*3.1)*uAudio.z*uReact.z*.05;
+  return h;
+}
+
+void main(){
+  vec2 uv = (2.*gl_FragCoord.xy - uRes)/uRes.y;
+  vec2 p = uv/uZoom + uCenter;
+  p += vec2(cos(DRIFTD), sin(DRIFTD))*uTime*DRIFTS*.12;
+  float h = heightf(p);
+  // beat pushes the level set → contours ripple outward
+  float lv = h*LEVELS*.45 + uBeat*uBeatAmt*1.6;
+  float g = fwidth(lv) + 1e-5;
+  float nid = floor(lv + .5);
+  float dc = abs(lv - nid);
+  float major = MAJORN > .5 ? 1. - step(.5, mod(nid, MAJORN)) : 0.;
+  float wpx = LINEW*(1. + major*(MAJORW - 1.));
+  float line = 1. - smoothstep(wpx*g*.5, wpx*g*.5 + g*1.1, dc);
+  float halo = exp(-dc/(g*(3. + 26.*GLOWP)));
+  float hn = clamp(h*.33 + .5, 0., 1.);
+  float hue = fract(HUE + uAudio.z*uReact.w*.3 + uBeat*uReact.w*.05);
+  int mode = int(CMODE + .5);
+  vec3 bg, ink;
+  if(mode == 0){ bg = vec3(BGL); ink = vec3(INKL); }
+  else if(mode == 1){ bg = hsv(hue, SAT*.5, max(BGL,.03)); ink = hsv(fract(hue + HSPREAD*.5), SAT, INKL); }
+  else if(mode == 2){ bg = hsv(hue, SAT*.45, BGL*.4 + .015); ink = hsv(fract(hue + (hn-.5)*HSPREAD*1.6), SAT, INKL); }
+  else { bg = hsv(fract(hue + (hn-.5)*HSPREAD*1.6), SAT*.85, mix(max(BGL,.05), .62, hn)); ink = vec3(.02); }
+  vec3 col = mix(bg, ink, line);
+  vec3 glowCol = (mode == 3) ? hsv(hue, SAT*.7, .8) : ink;
+  col += glowCol * halo * GLOWP * (.25 + uAudio.w*.75) * .8;
+  if(INVERT > .5) col = 1. - col;
+  col *= 1. - VIG*.55*dot(uv*.62, uv*.62);
+  col += (h21(gl_FragCoord.xy + fract(uTime)) - .5)*GRAIN*.07;
+  O = vec4(col, 1.);
+}`;
+
+/* ══════════════════════ audio engine ══════════════════════ */
+const ZEROAUD = { bass:0, mid:0, high:0, level:0, beat:0 };
+const AudioEngine = (()=>{
+  let ctx=null, analyser=null, srcNode=null, mediaEl=null, micStream=null, objURL=null;
+  let mode='off', freqData=null;
+  const S = { bass:0, mid:0, high:0, level:0, beat:0 };
+  let emaBass=.1, lastBeatT=0, demoPrev=0;
+
+  function ensureCtx(){
+    if(!ctx){
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = .55;
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+    }
+    if(ctx.state === 'suspended') ctx.resume();
+  }
+  function teardown(){
+    if(srcNode){ try{ srcNode.disconnect(); }catch(e){} srcNode = null; }
+    if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream = null; }
+    if(mediaEl){ mediaEl.pause(); mediaEl = null; }
+    if(objURL){ URL.revokeObjectURL(objURL); objURL = null; }
+    if(analyser){ try{ analyser.disconnect(); }catch(e){} }
+    mode = 'off';
+  }
+  async function setMode(m, file){
+    teardown();
+    if(m === 'off' || m === 'demo'){ mode = m; return { ok:true }; }
+    ensureCtx();
+    if(m === 'mic'){
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false } });
+      } catch(err){ return { ok:false, err:'microphone unavailable / denied' }; }
+      srcNode = ctx.createMediaStreamSource(micStream);
+      srcNode.connect(analyser);           // analyser only — no output, no feedback
+      mode = 'mic'; return { ok:true };
+    }
+    if(m === 'file'){
+      mediaEl = new Audio();
+      objURL = URL.createObjectURL(file);
+      mediaEl.src = objURL; mediaEl.loop = true;
+      srcNode = ctx.createMediaElementSource(mediaEl);
+      srcNode.connect(analyser);
+      analyser.connect(ctx.destination);   // audible playback
+      try { await mediaEl.play(); } catch(err){ teardown(); return { ok:false, err:'could not play file' }; }
+      mode = 'file'; return { ok:true };
+    }
+    return { ok:false, err:'unknown mode' };
+  }
+  function band(lo, hi){
+    const hzPerBin = ctx.sampleRate/2/freqData.length;
+    const a = Math.max(0, Math.floor(lo/hzPerBin)), b = Math.min(freqData.length-1, Math.ceil(hi/hzPerBin));
+    let s = 0;
+    for(let i=a;i<=b;i++) s += freqData[i];
+    return s/((b-a+1)*255);
+  }
+  function update(dt, now, gain){
+    let rb = 0, rm = 0, rh = 0;
+    if(mode === 'demo'){
+      const ph = now*116/60;                      // 116 bpm
+      if(Math.floor(ph) !== Math.floor(demoPrev)) S.beat = 1;
+      demoPrev = ph;
+      const env = Math.exp(-(ph - Math.floor(ph))*7);
+      const hat = Math.exp(-((ph*2) - Math.floor(ph*2))*9);
+      rb = Math.min(1, .22 + .75*env);
+      rm = Math.min(1, Math.max(0, .34 + .2*Math.sin(now*.9) + .16*Math.sin(now*2.26 + 1.3) + .12*env));
+      rh = Math.min(1, Math.max(0, .2 + .14*Math.sin(now*3.7 + .5) + .32*hat));
+    } else if(mode !== 'off' && analyser){
+      analyser.getByteFrequencyData(freqData);
+      rb = Math.min(1, band(25, 150)*1.5*gain);
+      rm = Math.min(1, band(150, 1800)*2.0*gain);
+      rh = Math.min(1, band(1800, 9000)*2.7*gain);
+      if(rb > emaBass*1.32 + .05 && now - lastBeatT > .2){ S.beat = 1; lastBeatT = now; }
+      emaBass += (rb - emaBass)*Math.min(1, dt*3);
+    }
+    const atk = Math.min(1, dt*22), rel = Math.min(1, dt*5.5);
+    S.bass += (rb - S.bass)*(rb > S.bass ? atk : rel);
+    S.mid  += (rm - S.mid) *(rm > S.mid  ? atk : rel);
+    S.high += (rh - S.high)*(rh > S.high ? atk : rel);
+    S.level = S.bass*.5 + S.mid*.3 + S.high*.2;
+    S.beat *= Math.exp(-dt*5);
+    return S;
+  }
+  return { setMode, update, getMode: ()=>mode };
+})();
+
+/* ══════════════════════ level meter ══════════════════════ */
+const meterCtx = $('meter').getContext('2d');
+function drawMeter(aud){
+  const w = 66, h = 26;
+  meterCtx.clearRect(0, 0, w, h);
+  const bars = [aud.bass, aud.mid, aud.high];
+  const cols = ['#d97e4a', '#e0b45c', '#c9bda2'];
+  bars.forEach((v,i)=>{
+    const bh = Math.max(1, v*(h-4));
+    meterCtx.fillStyle = cols[i];
+    meterCtx.globalAlpha = .25 + v*.75;
+    meterCtx.fillRect(4 + i*16, h-2-bh, 12, bh);
+  });
+  meterCtx.globalAlpha = .25 + aud.beat*.75;
+  meterCtx.fillStyle = '#f2ead6';
+  meterCtx.beginPath();
+  meterCtx.arc(58, h/2, 2 + aud.beat*3.5, 0, 6.2832);
+  meterCtx.fill();
+  meterCtx.globalAlpha = 1;
+}
+
+/* ══════════════════════ view: WebGL2 contour field + 2D pan/zoom ══════════════════════ */
+function createView(canvas, getParams, opts = {}){
+  const gl = canvas.getContext('webgl2', { antialias:false, preserveDrawingBuffer:true });
+  if(!gl) throw new Error('WebGL2 not available in this browser.');
+  function compile(type, src){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src); gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
+      throw new Error(gl.getShaderInfoLog(sh));
+    return sh;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const U = {};
+  for(const n of ['uRes','uCenter','uTime','uZoom','uAudio','uBeat','uReact','uBeatAmt','uD'])
+    U[n] = gl.getUniformLocation(prog, n);
+
+  const uD = new Float32Array(DNA.length);
+  const cam = { x:0, y:0, zoom:1 };
+  let flowTime = 0, needsRender = true, ready = false, running = false;
+
+  function resize(){
+    const P = getParams().params;
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    const w = Math.max(1, Math.round(canvas.clientWidth*dpr*P.res));
+    const h = Math.max(1, Math.round(canvas.clientHeight*dpr*P.res));
+    if(canvas.width !== w || canvas.height !== h){ canvas.width=w; canvas.height=h; needsRender = true; }
+  }
+  function draw(time, aud){
+    resize();
+    const P = getParams().params;
+    aud = aud || ZEROAUD;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(U.uRes, canvas.width, canvas.height);
+    gl.uniform2f(U.uCenter, cam.x, cam.y);
+    gl.uniform1f(U.uTime, time);
+    gl.uniform1f(U.uZoom, cam.zoom*(1 + aud.beat*P.a_zoom*.25));
+    gl.uniform4f(U.uAudio, aud.bass, aud.mid, aud.high, aud.level);
+    gl.uniform1f(U.uBeat, aud.beat);
+    gl.uniform4f(U.uReact, P.a_amp, P.a_warp, P.a_shimmer, P.a_hue);
+    gl.uniform1f(U.uBeatAmt, P.a_beat);
+    DNA.forEach((s,i)=>{ uD[i] = P[s.key]; });
+    gl.uniform1fv(U.uD, uD);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    ready = true;
+  }
+  let last = performance.now();
+  function loop(now){
+    if(!running) return;
+    const P = getParams().params;
+    const dt = Math.min(.05, (now-last)/1000); last = now;
+    const aud = opts.live ? AudioEngine.update(dt, now/1000, P.a_gain) : ZEROAUD;
+    if(P.animate){
+      flowTime += dt*P.flow_speed*(1 + (opts.live ? aud.level*P.a_speed*2 : 0));
+      draw(flowTime, aud);
+    } else if(needsRender){
+      draw(flowTime, aud);
+      needsRender = false;
+    }
+    if(opts.live) drawMeter(aud);
+    requestAnimationFrame(loop);
+  }
+
+  // pointer pan + wheel zoom
+  let dragging = false, px = 0, py = 0;
+  canvas.addEventListener('pointerdown', e=>{
+    dragging = true; px = e.clientX; py = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const s = 2/(canvas.clientHeight*cam.zoom);
+    cam.x -= (e.clientX-px)*s;
+    cam.y += (e.clientY-py)*s;
+    px = e.clientX; py = e.clientY; needsRender = true;
+  });
+  canvas.addEventListener('pointerup', ()=> dragging = false);
+  canvas.addEventListener('pointercancel', ()=> dragging = false);
+  canvas.addEventListener('wheel', e=>{
+    e.preventDefault();
+    cam.zoom = Math.max(.25, Math.min(8, cam.zoom * (1 - Math.sign(e.deltaY)*.08)));
+    needsRender = true;
+  }, { passive:false });
+
+  new ResizeObserver(()=>{ needsRender = true; }).observe(canvas);
+
+  return {
+    start(){ running = true; last = performance.now(); requestAnimationFrame(loop); },
+    invalidate(){ needsRender = true; },
+    recenter(){ cam.x = 0; cam.y = 0; cam.zoom = 1; needsRender = true; },
+    renderOnce(time){ draw(time, ZEROAUD); },
+    isReady(){ return ready; },
+    canvas,
+  };
+}
+
+/* ══════════════════════ app state ══════════════════════ */
+const P = mkDefault();
+let baseHash = '', baseline = null, curToken = '', view = null;
+let bootT = performance.now();  // guard: ignore control events fired by Chrome form restoration
+const bootGuard = () => performance.now() - bootT < 400;
+
+function buildBaseline(h){ const bp = mkDefault(); roll(bp, h); return bp; }
+function setBase(h){
+  baseHash = h; baseline = buildBaseline(h);
+  for(const s of DNA) P[s.key] = baseline[s.key];
+}
+function updateCard(){
+  const m = surveyMeta(baseHash);
+  document.querySelector('#sheet-card .formation').textContent = m.name;
+  document.querySelector('#sheet-card .meta').textContent =
+    m.elev + '  ·  sheet ' + m.sheet + '  ·  ' + TYPE_NAMES.color_mode[Math.round(P.color_mode)] + '  ·  #' + curToken;
+}
+function draw(){
+  curToken = TOKEN.encode(baseHash, P, baseline);
+  setHashDisplay(curToken);
+  const url = new URL(location.href);
+  url.searchParams.set('h', curToken);
+  history.replaceState(null, '', url);
+  updateCard();
+  if(view) view.invalidate();
+}
+
+/* ══════════════════════ controls UI ══════════════════════ */
+const BINDINGS = [];
+function fmt(key, v){
+  const names = TYPE_NAMES[key];
+  if(names) return names[Math.round(v)] ?? v;
+  const d = decimals(SPEC_BY_KEY[key].step);
+  return d === 0 ? String(Math.round(v)) : (+v).toFixed(d);   // v may be an un-quantized float during auto drift
+}
+function buildControls(){
+  const panel = $('controls-panel'); panel.innerHTML = ''; BINDINGS.length = 0;
+  SECTIONS.forEach(sec=>{
+    const section = document.createElement('div');
+    section.className = 'section' + (sec.collapsed ? ' collapsed' : '');
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.innerHTML = `<span class="caret">${sec.collapsed?'▸':'▾'}</span>${sec.title}`;
+    title.addEventListener('click', ()=>{
+      section.classList.toggle('collapsed');
+      title.querySelector('.caret').textContent = section.classList.contains('collapsed') ? '▸' : '▾';
+    });
+    section.appendChild(title);
+    const body = document.createElement('div'); body.className = 'section-body';
+    for(const key of sec.rows) body.appendChild(buildRow(key, !!sec.presentation));
+    section.appendChild(body);
+    panel.appendChild(section);
+  });
+}
+function buildRow(key, presentation){
+  const spec = SPEC_BY_KEY[key];
+  const crow = document.createElement('div'); crow.className = 'crow';
+  const lab = document.createElement('span'); lab.className = 'clabel'; lab.textContent = spec.label; crow.appendChild(lab);
+  const onchange = presentation ? ()=>{ if(key === 'auto') applyAutoState(); if(view) view.invalidate(); } : draw;
+  const names = TYPE_NAMES[key];
+  if(names){
+    const sel = document.createElement('select');
+    sel.autocomplete = 'off';
+    names.forEach((n,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=n; sel.appendChild(o); });
+    sel.value = Math.round(P[key]);
+    sel.addEventListener('change', ()=>{ if(bootGuard()){ syncUI(); return; } P[key] = +sel.value; onchange(); });
+    crow.appendChild(sel);
+    BINDINGS.push(()=>{ sel.value = Math.round(P[key]); });
+    return crow;
+  }
+  if(spec.min === 0 && spec.max === 1 && spec.step === 1){
+    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = P[key] === 1;
+    input.autocomplete = 'off';
+    input.addEventListener('change', ()=>{ if(bootGuard()){ syncUI(); return; } P[key] = input.checked ? 1 : 0; onchange(); });
+    crow.appendChild(input);
+    BINDINGS.push(()=>{ input.checked = P[key] === 1; });
+    return crow;
+  }
+  const dec = decimals(spec.step);
+  const parse = v => dec === 0 ? Math.round(+v) : +parseFloat(v).toFixed(dec);
+  const input = document.createElement('input');
+  input.type = 'range'; input.min = spec.min; input.max = spec.max; input.step = spec.step; input.value = P[key];
+  input.autocomplete = 'off';
+  const val = document.createElement('span'); val.className = 'cval'; val.textContent = fmt(key, parse(input.value));
+  input.addEventListener('input', ()=>{
+    if(bootGuard()){ syncUI(); return; }
+    const v = parse(input.value); P[key] = v; val.textContent = fmt(key, v); onchange();
+  });
+  crow.appendChild(input); crow.appendChild(val);
+  BINDINGS.push(()=>{ input.value = P[key]; val.textContent = fmt(key, P[key]); });
+  return crow;
+}
+function syncUI(){ for(const b of BINDINGS) b(); }
+
+/* ══════════════════════ audio UI ══════════════════════ */
+let lastGoodAudioMode = 'off';
+function setAudioStatus(text, live){
+  const el = $('audio-status');
+  el.textContent = text;
+  el.classList.toggle('live', !!live);
+}
+async function engageAudioMode(m, file){
+  const res = await AudioEngine.setMode(m, file);
+  if(!res.ok){
+    setAudioStatus('✕ ' + res.err, false);
+    $('audio-mode').value = lastGoodAudioMode = 'off';
+    await AudioEngine.setMode('off');
+    drawMeter(ZEROAUD);
+    return;
+  }
+  lastGoodAudioMode = m;
+  if(m === 'off'){ setAudioStatus('silent — field drifts on its own', false); drawMeter(ZEROAUD); }
+  else if(m === 'demo') setAudioStatus('demo groove · 116 bpm synthetic', true);
+  else if(m === 'mic') setAudioStatus('listening — microphone live', true);
+  else if(m === 'file') setAudioStatus('♪ ' + (file ? file.name : 'file') + ' (looping)', true);
+}
+$('audio-mode').addEventListener('change', ()=>{
+  if(bootGuard()){ $('audio-mode').value = lastGoodAudioMode; return; }
+  const m = $('audio-mode').value;
+  if(m === 'file'){ $('audio-file').click(); return; }   // engage on file pick
+  engageAudioMode(m);
+});
+$('audio-file').addEventListener('change', ()=>{
+  const f = $('audio-file').files[0];
+  if(f) engageAudioMode('file', f);
+  else $('audio-mode').value = lastGoodAudioMode;
+  $('audio-file').value = '';
+});
+$('audio-file').addEventListener('cancel', ()=>{ $('audio-mode').value = lastGoodAudioMode; });
+
+/* ══════════════════════ auto drift ══════════════════════ */
+// Eases DNA toward a freshly rolled target sheet, repicked every ~10s/rate.
+// Exponential approach → position always continuous, no pops. Discrete params
+// that would jump (wave count, palette, invert, index spacing) are held; angles
+// and hue take the short way around the wrap; values glide as un-quantized floats.
+const AUTO_EXCLUDE = new Set(['wave_count','color_mode','invert','major_every']);
+const WRAP_RANGE = { hue:1, wave_dir:6.28, drift_dir:6.28 };
+let autoTarget = null, autoT = 0, autoSyncT = 0;
+function rollAutoTarget(){
+  autoTarget = mkDefault(); roll(autoTarget, randHex(8));
+  for(const k of AUTO_EXCLUDE) autoTarget[k] = P[k];
+}
+function autoTick(dt){
+  if(!P.auto) return;
+  autoT -= dt;
+  if(!autoTarget || autoT <= 0){ rollAutoTarget(); autoT = 10/Math.max(.2, P.auto_rate); }
+  const k = 1 - Math.exp(-dt*P.auto_rate/3.5);
+  for(const s of DNA){
+    if(AUTO_EXCLUDE.has(s.key)) continue;
+    const wrap = WRAP_RANGE[s.key];
+    let d = autoTarget[s.key] - P[s.key];
+    if(wrap) d -= wrap*Math.round(d/wrap);
+    P[s.key] += d*k;
+  }
+  if(view) view.invalidate();
+  autoSyncT -= dt;
+  if(autoSyncT <= 0){ autoSyncT = .15; syncUI(); }
+}
+function applyAutoState(){
+  $('auto-btn').classList.toggle('active', P.auto === 1);
+  if(P.auto === 1){
+    autoTarget = null;
+    setHashDisplay('drifting…');
+  } else {
+    for(const s of DNA) P[s.key] = quant(P[s.key], s);   // freeze on a shareable token
+    syncUI(); draw();
+  }
+}
+function toggleAuto(){ P.auto = P.auto === 1 ? 0 : 1; syncUI(); applyAutoState(); }
+let autoLast = performance.now();
+function autoLoop(now){
+  const dt = Math.min(.1, (now-autoLast)/1000); autoLast = now;
+  autoTick(dt);
+  requestAnimationFrame(autoLoop);
+}
+requestAnimationFrame(autoLoop);
+
+/* ══════════════════════ topbar actions ══════════════════════ */
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function setHashDisplay(tok){
+  $('hash-display').innerHTML = '#<b>'+escapeHtml(tok)+'</b> <button class="copy-icon" onclick="copyHash()" title="Copy hash">⧉</button>';
+}
+function randomize(){ setBase(randHex(8)); $('hash-input').value = baseHash; syncUI(); draw(); }
+function loadToken(token){
+  const { baseHash:bh, overrides } = TOKEN.decode(token);
+  setBase(bh); TOKEN.apply(P, overrides);
+  $('hash-input').value = token;
+  syncUI(); draw();
+}
+function loadHash(){
+  const raw = $('hash-input').value.trim().replace(/^#/,'');
+  if(raw) loadToken(raw);
+}
+function copyHash(){
+  if(!curToken) return;
+  navigator.clipboard.writeText(curToken).then(()=>{
+    const b = document.querySelector('#hash-display .copy-icon');
+    if(b){ const o=b.textContent; b.textContent='✓'; setTimeout(()=>b.textContent=o, 1200); }
+  });
+}
+function viewRecenter(){ if(view) view.recenter(); }
+function toggleFullscreen(){
+  if(document.fullscreenElement) document.exitFullscreen();
+  else $('canvas-panel').requestFullscreen();
+}
+
+function downloadPNG(){
+  const src = view.canvas;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const W = Math.max(1, Math.round(src.clientWidth*dpr)), H = Math.max(1, Math.round(src.clientHeight*dpr));
+  const capH = Math.round(46*dpr);
+  const out = mkCanvas(W, H + capH), ctx = out.getContext('2d');
+  ctx.fillStyle = '#060504'; ctx.fillRect(0, 0, out.width, out.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(src, 0, 0, W, H);
+  const m = surveyMeta(baseHash);
+  ctx.font = (13*dpr) + 'px ui-monospace, monospace';
+  ctx.fillStyle = '#efe6ce'; ctx.textAlign = 'left';
+  ctx.fillText(m.name, 12*dpr, H + 18*dpr);
+  ctx.font = (11*dpr) + 'px ui-monospace, monospace'; ctx.fillStyle = '#6e6450';
+  ctx.fillText(m.elev + '  ·  sheet ' + m.sheet + '  ·  ' + TYPE_NAMES.color_mode[Math.round(P.color_mode)], 12*dpr, H + 34*dpr);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#e0b45c';
+  ctx.fillText('STRATA  #' + curToken, out.width - 12*dpr, H + 18*dpr);
+  const a = document.createElement('a');
+  a.href = out.toDataURL('image/png');
+  a.download = 'strata-' + (curToken || 'sheet') + '.png';
+  a.click();
+}
+
+/* ══════════════════════ atlas grid ══════════════════════ */
+const GRID_N = 12, GRID_COLS = 4, GRID_HASHES = [];
+let gridView = null, gridP = null, gridDealing = false;
+function ensureGridView(){
+  if(gridView) return;
+  gridP = mkDefault(); gridP.res = 1; gridP.animate = 1;
+  gridView = createView($('grid-render'), ()=>({ params:gridP }));
+}
+function openGrid(){
+  $('grid-overlay').style.display = 'flex';
+  if(!$('grid-cells').childElementCount) dealGrid();
+}
+function closeGrid(){ $('grid-overlay').style.display = 'none'; }
+function dealGrid(){
+  if(gridDealing) return; gridDealing = true;
+  ensureGridView();
+  const cells = $('grid-cells'); cells.innerHTML = ''; GRID_HASHES.length = 0;
+  const jobs = [];
+  for(let i=0;i<GRID_N;i++){
+    const h = randHex(8); GRID_HASHES.push(h);
+    const cell = document.createElement('div'); cell.className = 'gcell'; cell.title = '#'+h;
+    const cv = mkCanvas(1,1);
+    const nm = document.createElement('span'); nm.className = 'gname'; nm.textContent = surveyMeta(h).name;
+    const lab = document.createElement('span'); lab.className = 'ghash'; lab.textContent = '#'+h;
+    cell.appendChild(cv); cell.appendChild(nm); cell.appendChild(lab);
+    cell.addEventListener('click', ()=>{ closeGrid(); $('hash-input').value = h; loadToken(h); });
+    cells.appendChild(cell);
+    jobs.push({ h, cv });
+  }
+  let i = 0;
+  const step = ()=>{
+    if(i >= jobs.length){ gridDealing = false; return; }
+    const { h, cv } = jobs[i++];
+    roll(gridP, h);
+    gridView.renderOnce(parseInt(h.slice(0,4),16)/65535*60);   // deterministic frame per hash
+    const src = $('grid-render');
+    cv.width = src.width; cv.height = src.height;
+    cv.getContext('2d').drawImage(src, 0, 0);
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function downloadGridPNG(){
+  const cvs = [...$('grid-cells').querySelectorAll('.gcell canvas')];
+  if(!cvs.length || gridDealing) return;
+  const cw = cvs[0].width, ch = cvs[0].height, pad = 10, labelH = 16, headH = 26;
+  const rows = Math.ceil(cvs.length/GRID_COLS);
+  const out = mkCanvas(GRID_COLS*(cw+pad)+pad, headH + rows*(ch+labelH+pad) + pad);
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#060504'; ctx.fillRect(0, 0, out.width, out.height);
+  ctx.font = '12px ui-monospace, monospace'; ctx.fillStyle = '#e0b45c'; ctx.fillText('STRATA — atlas', pad, 17);
+  cvs.forEach((cv,i)=>{
+    const c = i%GRID_COLS, r = (i/GRID_COLS)|0;
+    const x = pad + c*(cw+pad), y = headH + pad + r*(ch+labelH+pad);
+    ctx.drawImage(cv, x, y);
+    ctx.fillStyle = '#6e6450'; ctx.textAlign = 'left'; ctx.fillText('#'+GRID_HASHES[i], x, y+ch+12);
+  });
+  const a = document.createElement('a');
+  a.href = out.toDataURL('image/png'); a.download = 'strata-atlas.png'; a.click();
+}
+
+/* ══════════════════════ boot ══════════════════════ */
+window.addEventListener('keydown', e=>{
+  if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if(e.code === 'Space'){ e.preventDefault(); randomize(); }
+  if(e.key === 't') openGrid();
+  if(e.key === 'f') toggleFullscreen();
+  if(e.key === 'a') toggleAuto();
+  if(e.key === 'ArrowDown'){ e.preventDefault(); downloadPNG(); }
+  if(e.key === 'Escape') closeGrid();
+});
+window.addEventListener('load', ()=>{
+  bootT = performance.now();
+  buildControls();
+  drawMeter(ZEROAUD);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    try {
+      view = createView($('view-canvas'), ()=>({ params:P }), { live:true });
+    } catch(err){
+      console.error(err);
+      $('loading').style.display = 'none';
+      $('err').style.display = 'flex';
+      document.querySelector('#err pre').textContent = 'RENDER ERROR:\n\n' + String(err && err.message || err);
+      return;
+    }
+    const q = new URLSearchParams(location.search), urlTok = q.get('h');
+    if(urlTok){ $('hash-input').value = urlTok; loadToken(urlTok); }
+    else { setBase(randHex(8)); $('hash-input').value = baseHash; syncUI(); draw(); }
+    view.start();
+    const watch = setInterval(()=>{
+      if(view.isReady()){ $('loading').style.display = 'none'; clearInterval(watch); }
+    }, 100);
+  }));
+});
+</script>
+</body>
+</html>
